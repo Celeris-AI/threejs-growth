@@ -1,228 +1,1339 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>0歳から18歳まで</title>
-  <style>
-    html, body {
-      margin: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: #000;
-      font-family: Arial, sans-serif;
-    }
-    #app {
-      width: 100%;
-      height: 100%;
-      position: relative;
-    }
-    #overlay {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      padding: 20px;
-      box-sizing: border-box;
-      color: white;
-      text-shadow: 0 0 10px rgba(0,0,0,0.7);
-      z-index: 2;
-    }
-    #title {
-      text-align: center;
-      font-size: clamp(22px, 4vw, 38px);
-      font-weight: bold;
-      margin-top: 8px;
-    }
-    #ageLabel {
-      align-self: center;
-      margin-bottom: 16px;
-      padding: 10px 18px;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.10);
-      border: 1px solid rgba(255,255,255,0.2);
-      font-size: clamp(18px, 2.8vw, 28px);
-      font-weight: bold;
-    }
-    #loading {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      place-items: center;
-      color: white;
-      font-size: 18px;
-      z-index: 3;
-      background: rgba(0,0,0,0.85);
-      white-space: pre-line;
-      text-align: center;
-      padding: 20px;
-      box-sizing: border-box;
-    }
-    canvas {
-      display: block;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ocean Globe House Seasons - Ship Visible Edition</title>
+
+<style>
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+  }
+
+  #bg-back {
+    position: fixed;
+    inset: 0;
+    background: url("sea_bg.png") center center / cover no-repeat;
+    z-index: 0;
+  }
+
+  canvas {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+  }
+
+  #ocean-front {
+    position: fixed;
+    inset: 0;
+    background: url("sea_bg.png") center center / cover no-repeat;
+    z-index: 2;
+    pointer-events: none;
+    clip-path: inset(49% 0 0 0);
+  }
+
+  #ocean-front::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -2%;
+    height: 18%;
+    background:
+      linear-gradient(
+        to bottom,
+        rgba(255,255,255,0.16) 0%,
+        rgba(160,220,255,0.10) 28%,
+        rgba(60,130,190,0.08) 55%,
+        rgba(10,45,90,0.00) 100%
+      );
+    mix-blend-mode: screen;
+    filter: blur(8px);
+  }
+
+  #water-shimmer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 49%;
+    bottom: 0;
+    z-index: 3;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 20% 10%, rgba(255,255,255,0.18), rgba(255,255,255,0) 38%),
+      radial-gradient(ellipse at 70% 18%, rgba(255,255,255,0.10), rgba(255,255,255,0) 34%),
+      repeating-linear-gradient(
+        to bottom,
+        rgba(255,255,255,0.06) 0px,
+        rgba(255,255,255,0.02) 3px,
+        rgba(255,255,255,0.00) 8px,
+        rgba(0,0,0,0.00) 15px
+      );
+    opacity: 0.55;
+    mix-blend-mode: screen;
+    animation: shimmerMove 7s linear infinite;
+    filter: blur(1.5px);
+  }
+
+  @keyframes shimmerMove {
+    0%   { transform: translateY(0) scaleY(1); }
+    50%  { transform: translateY(8px) scaleY(1.02); }
+    100% { transform: translateY(0) scaleY(1); }
+  }
+
+  #ui {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 10;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  button {
+    border: none;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.88);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  button.active {
+    background: rgba(255,245,220,0.96);
+  }
+
+  #debug {
+    position: fixed;
+    left: 14px;
+    bottom: 14px;
+    z-index: 20;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: rgba(0,0,0,0.45);
+    color: #fff;
+    font-size: 13px;
+    font-family: ui-monospace, Consolas, monospace;
+    backdrop-filter: blur(6px);
+  }
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
 </head>
 <body>
-  <div id="app">
-    <div id="loading">読み込み中…✨</div>
-    <div id="overlay">
-      <div id="title">0歳から18歳まで</div>
-      <div id="ageLabel">0歳</div>
-    </div>
-  </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.min.js"></script>
+<div id="bg-back"></div>
 
-  <script>
-    const loading = document.getElementById("loading");
-    const ageLabel = document.getElementById("ageLabel");
-    const app = document.getElementById("app");
+<div id="ui">
+  <button class="season-btn active" data-season="spring">🌸 桜</button>
+  <button class="season-btn" data-season="summer">✨ 光</button>
+  <button class="season-btn" data-season="autumn">🍁 モミジ</button>
+  <button class="season-btn" data-season="winter">❄️ 雪</button>
+</div>
 
-    const TOTAL_AGES = 19;
-    const DURATION = 10;
-    const imagePaths = Array.from({ length: TOTAL_AGES }, (_, i) => `${i}.png`);
+<div id="ocean-front"></div>
+<div id="water-shimmer"></div>
+<div id="debug">ship: loading...</div>
 
-    const scene = new THREE.Scene();
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-    const camera = new THREE.PerspectiveCamera(
-      45,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      100
-    );
-    camera.position.set(0, 0, 8);
+const debug = document.getElementById("debug");
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    app.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
 
-    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+const camera = new THREE.PerspectiveCamera(
+  50,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000
+);
+camera.position.set(0, 2.7, 14);
 
-    const dl = new THREE.DirectionalLight(0xffffff, 1.2);
-    dl.position.set(5, 3, 5);
-    scene.add(dl);
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  alpha: true
+});
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x000000, 0);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
 
-    const sphereGeo = new THREE.SphereGeometry(2.2, 64, 64);
-    const sphereMat = new THREE.MeshStandardMaterial({
-      roughness: 0.9,
-      metalness: 0
-    });
-    const sphere = new THREE.Mesh(sphereGeo, sphereMat);
-    scene.add(sphere);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.target.set(0, -0.6, -6.2);
 
-    const starGeo = new THREE.BufferGeometry();
-    const starCount = 1000;
-    const starPos = new Float32Array(starCount * 3);
+/* ==========
+   ライト
+========== */
+scene.add(new THREE.AmbientLight(0xffffff, 1.4));
 
-    for (let i = 0; i < starCount; i++) {
-      const r = 18 + Math.random() * 18;
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos((Math.random() * 2) - 1);
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.8);
+dirLight.position.set(8, 11, 9);
+scene.add(dirLight);
 
-      starPos[i * 3 + 0] = r * Math.sin(phi) * Math.cos(theta);
-      starPos[i * 3 + 1] = r * Math.cos(phi);
-      starPos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+const fillLight = new THREE.DirectionalLight(0xdff4ff, 0.95);
+fillLight.position.set(-8, 5, -6);
+scene.add(fillLight);
+
+/* ==========
+   グローブ全体
+========== */
+const globeGroup = new THREE.Group();
+globeGroup.position.set(0, -0.95, -6.25);
+scene.add(globeGroup);
+
+const globeRadius = 3.15;
+
+/* ==========
+   球
+========== */
+const sphereMaterial = new THREE.MeshPhysicalMaterial({
+  color: 0xf6fcff,
+  transparent: true,
+  opacity: 0.20,
+  transmission: 0.0,
+  roughness: 0.09,
+  metalness: 0.0,
+  clearcoat: 1.0,
+  clearcoatRoughness: 0.06,
+  depthWrite: false
+});
+
+const globeSphere = new THREE.Mesh(
+  new THREE.SphereGeometry(globeRadius, 110, 110),
+  sphereMaterial
+);
+globeGroup.add(globeSphere);
+
+const globeHighlight = new THREE.Mesh(
+  new THREE.SphereGeometry(globeRadius + 0.035, 110, 110),
+  new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.10,
+    side: THREE.BackSide,
+    depthWrite: false
+  })
+);
+globeGroup.add(globeHighlight);
+
+const globeSpec = new THREE.Mesh(
+  new THREE.SphereGeometry(globeRadius + 0.05, 110, 110),
+  new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.03,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  })
+);
+globeSpec.position.set(-0.18, 0.15, 0.22);
+globeGroup.add(globeSpec);
+
+/* ==========
+   土台
+========== */
+const base = new THREE.Mesh(
+  new THREE.CylinderGeometry(2.45, 2.9, 0.76, 64),
+  new THREE.MeshStandardMaterial({
+    color: 0x8c6d4a,
+    roughness: 0.96
+  })
+);
+base.position.set(0, -4.18, 0);
+globeGroup.add(base);
+
+const innerGround = new THREE.Mesh(
+  new THREE.CircleGeometry(2.38, 64),
+  new THREE.MeshStandardMaterial({
+    color: 0x7fb36a,
+    roughness: 1
+  })
+);
+innerGround.rotation.x = -Math.PI / 2;
+innerGround.position.set(0, -3.78, 0);
+globeGroup.add(innerGround);
+
+/* ==========
+   家
+========== */
+const houseGroup = new THREE.Group();
+houseGroup.position.set(0, -3.55, 0);
+globeGroup.add(houseGroup);
+
+const walls = new THREE.Mesh(
+  new THREE.BoxGeometry(1.72, 1.26, 1.72),
+  new THREE.MeshStandardMaterial({
+    color: 0xf6eee3,
+    roughness: 0.95
+  })
+);
+walls.position.y = 0.76;
+houseGroup.add(walls);
+
+const roof = new THREE.Mesh(
+  new THREE.ConeGeometry(1.30, 1.05, 4),
+  new THREE.MeshStandardMaterial({
+    color: 0xa64b38,
+    roughness: 0.9
+  })
+);
+roof.position.y = 1.82;
+roof.rotation.y = Math.PI / 4;
+houseGroup.add(roof);
+
+const door = new THREE.Mesh(
+  new THREE.BoxGeometry(0.36, 0.68, 0.05),
+  new THREE.MeshStandardMaterial({
+    color: 0x6d4a30,
+    roughness: 0.9
+  })
+);
+door.position.set(0, 0.38, 0.88);
+houseGroup.add(door);
+
+const windowMat = new THREE.MeshStandardMaterial({
+  color: 0xd6f3ff,
+  emissive: 0xffdc94,
+  emissiveIntensity: 0.42,
+  transparent: true,
+  opacity: 0.96
+});
+
+const windowL = new THREE.Mesh(
+  new THREE.BoxGeometry(0.26, 0.26, 0.04),
+  windowMat
+);
+windowL.position.set(-0.46, 0.83, 0.88);
+houseGroup.add(windowL);
+
+const windowR = new THREE.Mesh(
+  new THREE.BoxGeometry(0.26, 0.26, 0.04),
+  windowMat.clone()
+);
+windowR.position.set(0.46, 0.83, 0.88);
+houseGroup.add(windowR);
+
+const chimney = new THREE.Mesh(
+  new THREE.BoxGeometry(0.18, 0.60, 0.18),
+  new THREE.MeshStandardMaterial({
+    color: 0xb56a52,
+    roughness: 0.95
+  })
+);
+chimney.position.set(0.50, 2.1, 0.2);
+houseGroup.add(chimney);
+
+function makeTree(x, z, trunkColor, leafColor) {
+  const tree = new THREE.Group();
+
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.05, 0.06, 0.38, 10),
+    new THREE.MeshStandardMaterial({ color: trunkColor })
+  );
+  trunk.position.y = 0.20;
+  tree.add(trunk);
+
+  const leaf = new THREE.Mesh(
+    new THREE.SphereGeometry(0.25, 18, 18),
+    new THREE.MeshStandardMaterial({
+      color: leafColor,
+      roughness: 0.9
+    })
+  );
+  leaf.position.y = 0.50;
+  tree.add(leaf);
+
+  tree.position.set(x, 0, z);
+  return tree;
+}
+
+houseGroup.add(makeTree(-1.08, 0.34, 0x6d4a30, 0x76bd62));
+houseGroup.add(makeTree(1.08, 0.20, 0x6d4a30, 0x69b857));
+
+/* ==========
+   家の反射
+========== */
+const reflectionGroup = houseGroup.clone(true);
+reflectionGroup.scale.y = -1;
+reflectionGroup.position.set(0, -4.95, 0);
+reflectionGroup.traverse(obj => {
+  if (obj.isMesh) {
+    obj.material = obj.material.clone();
+    obj.material.transparent = true;
+    obj.material.opacity = 0.14;
+    obj.material.depthWrite = false;
+    if ("emissiveIntensity" in obj.material) {
+      obj.material.emissiveIntensity *= 0.35;
+    }
+  }
+});
+
+const reflectionWrap = new THREE.Group();
+reflectionWrap.add(reflectionGroup);
+globeGroup.add(reflectionWrap);
+
+const waterPlane = new THREE.Mesh(
+  new THREE.CircleGeometry(2.7, 80),
+  new THREE.MeshBasicMaterial({
+    color: 0x9fdcff,
+    transparent: true,
+    opacity: 0.10,
+    depthWrite: false
+  })
+);
+waterPlane.rotation.x = -Math.PI / 2;
+waterPlane.position.set(0, -3.55, 0);
+globeGroup.add(waterPlane);
+
+const waterGlow = new THREE.Mesh(
+  new THREE.CircleGeometry(2.95, 80),
+  new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.05,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  })
+);
+waterGlow.rotation.x = -Math.PI / 2;
+waterGlow.position.set(0, -3.52, 0);
+globeGroup.add(waterGlow);
+
+/* ==========
+   季節テクスチャ
+========== */
+function makePetalTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d");
+
+  ctx.translate(64, 64);
+  ctx.rotate(-0.35);
+
+  const grad = ctx.createRadialGradient(-8, -12, 4, 0, 0, 40);
+  grad.addColorStop(0, "rgba(255,240,248,1)");
+  grad.addColorStop(1, "rgba(255,160,205,0.98)");
+  ctx.fillStyle = grad;
+
+  ctx.beginPath();
+  ctx.moveTo(0, -32);
+  ctx.bezierCurveTo(28, -22, 30, 10, 0, 34);
+  ctx.bezierCurveTo(-24, 10, -22, -22, 0, -32);
+  ctx.fill();
+
+  return new THREE.CanvasTexture(canvas);
+}
+
+function makeGlowTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d");
+
+  const grad = ctx.createRadialGradient(64, 64, 4, 64, 64, 46);
+  grad.addColorStop(0, "rgba(255,255,255,1)");
+  grad.addColorStop(0.28, "rgba(255,250,180,0.95)");
+  grad.addColorStop(0.62, "rgba(255,225,120,0.50)");
+  grad.addColorStop(1, "rgba(255,220,120,0)");
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(64, 64, 46, 0, Math.PI * 2);
+  ctx.fill();
+
+  return new THREE.CanvasTexture(canvas);
+}
+
+function makeLeafTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d");
+
+  ctx.translate(64, 64);
+  ctx.rotate(0.2);
+
+  const grad = ctx.createLinearGradient(-20, -30, 20, 30);
+  grad.addColorStop(0, "rgba(255,185,70,1)");
+  grad.addColorStop(0.5, "rgba(220,110,30,1)");
+  grad.addColorStop(1, "rgba(168,70,22,1)");
+  ctx.fillStyle = grad;
+
+  ctx.beginPath();
+  ctx.moveTo(0, -34);
+  ctx.bezierCurveTo(26, -12, 22, 28, 0, 36);
+  ctx.bezierCurveTo(-22, 28, -28, -12, 0, -34);
+  ctx.fill();
+
+  return new THREE.CanvasTexture(canvas);
+}
+
+function makeSnowTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d");
+
+  ctx.translate(64, 64);
+  ctx.strokeStyle = "rgba(255,255,255,0.98)";
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+
+  for (let i = 0; i < 6; i++) {
+    ctx.save();
+    ctx.rotate((Math.PI / 3) * i);
+    ctx.beginPath();
+    ctx.moveTo(0, -30);
+    ctx.lineTo(0, 30);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(0, -14); ctx.lineTo(-7, -7);
+    ctx.moveTo(0, -14); ctx.lineTo(7, -7);
+    ctx.moveTo(0, 14);  ctx.lineTo(-7, 7);
+    ctx.moveTo(0, 14);  ctx.lineTo(7, 7);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  return new THREE.CanvasTexture(canvas);
+}
+
+function makeShimmerTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+
+  let grad = ctx.createLinearGradient(0, 128, 256, 128);
+  grad.addColorStop(0, "rgba(255,255,255,0)");
+  grad.addColorStop(0.20, "rgba(255,255,255,0.12)");
+  grad.addColorStop(0.50, "rgba(255,245,200,0.28)");
+  grad.addColorStop(0.80, "rgba(180,235,255,0.14)");
+  grad.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 70, 256, 116);
+
+  for (let i = 0; i < 26; i++) {
+    const x = Math.random() * 256;
+    const y = 78 + Math.random() * 100;
+    const r = 3 + Math.random() * 12;
+    const a = 0.08 + Math.random() * 0.18;
+
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(255,255,255,${a})`);
+    g.addColorStop(0.5, `rgba(255,245,210,${a * 0.7})`);
+    g.addColorStop(1, "rgba(255,255,255,0)");
+
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  return new THREE.CanvasTexture(canvas);
+}
+
+function makeRippleTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+
+  const grad = ctx.createRadialGradient(128, 128, 40, 128, 128, 110);
+  grad.addColorStop(0.0, "rgba(255,255,255,0)");
+  grad.addColorStop(0.55, "rgba(255,255,255,0)");
+  grad.addColorStop(0.72, "rgba(255,255,255,0.32)");
+  grad.addColorStop(0.82, "rgba(180,230,255,0.24)");
+  grad.addColorStop(0.92, "rgba(255,255,255,0.10)");
+  grad.addColorStop(1.0, "rgba(255,255,255,0)");
+
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(128, 128, 110, 0, Math.PI * 2);
+  ctx.fill();
+
+  return new THREE.CanvasTexture(canvas);
+}
+
+const seasonTextures = {
+  spring: makePetalTexture(),
+  summer: makeGlowTexture(),
+  autumn: makeLeafTexture(),
+  winter: makeSnowTexture()
+};
+
+const seasonConfigs = {
+  spring: { map: seasonTextures.spring, opacity: 0.95, scaleMin: 0.24, scaleMax: 0.36, fallSpeed: 0.010, windX: 0.006, windZ: 0.001 },
+  summer: { map: seasonTextures.summer, opacity: 0.88, scaleMin: 0.15, scaleMax: 0.24, fallSpeed: 0.0025, windX: 0.001, windZ: 0.001 },
+  autumn: { map: seasonTextures.autumn, opacity: 0.93, scaleMin: 0.25, scaleMax: 0.36, fallSpeed: 0.013, windX: 0.007, windZ: 0.003 },
+  winter: { map: seasonTextures.winter, opacity: 0.92, scaleMin: 0.18, scaleMax: 0.28, fallSpeed: 0.008, windX: 0.002, windZ: 0.0008 }
+};
+
+let currentSeason = "spring";
+
+/* ==========
+   球内パーティクル
+========== */
+const particleGroup = new THREE.Group();
+globeGroup.add(particleGroup);
+
+const particleCount = 160;
+const particles = [];
+const velocities = [];
+
+function resetParticle(sprite, first = false) {
+  const r = globeRadius - 0.35;
+  const yMin = -2.8;
+  const yMax = 2.7;
+  const y = first ? yMin + Math.random() * (yMax - yMin) : yMax;
+
+  const dy = y;
+  const maxXZ = Math.sqrt(Math.max(0, r * r - dy * dy)) * 0.82;
+  const angle = Math.random() * Math.PI * 2;
+  const radius = Math.sqrt(Math.random()) * maxXZ;
+
+  sprite.position.set(
+    Math.cos(angle) * radius,
+    y,
+    Math.sin(angle) * radius
+  );
+
+  sprite.material.rotation = Math.random() * Math.PI;
+
+  const cfg = seasonConfigs[currentSeason];
+  const s = cfg.scaleMin + Math.random() * (cfg.scaleMax - cfg.scaleMin);
+  sprite.scale.set(s, s, 1);
+}
+
+for (let i = 0; i < particleCount; i++) {
+  const mat = new THREE.SpriteMaterial({
+    map: seasonTextures.spring,
+    transparent: true,
+    opacity: 0.95,
+    depthWrite: false,
+    depthTest: true,
+    color: 0xffffff
+  });
+
+  const sprite = new THREE.Sprite(mat);
+  particleGroup.add(sprite);
+
+  particles.push(sprite);
+  velocities.push({
+    x: (Math.random() - 0.5) * 0.01,
+    y: -0.004 - Math.random() * 0.006,
+    z: (Math.random() - 0.5) * 0.01
+  });
+
+  resetParticle(sprite, true);
+}
+
+function setSeason(name) {
+  currentSeason = name;
+  const cfg = seasonConfigs[name];
+
+  particles.forEach((p) => {
+    p.material.map = cfg.map;
+    p.material.opacity = cfg.opacity;
+    p.material.needsUpdate = true;
+
+    const s = cfg.scaleMin + Math.random() * (cfg.scaleMax - cfg.scaleMin);
+    p.scale.set(s, s, 1);
+  });
+
+  document.querySelectorAll(".season-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.season === name);
+  });
+}
+
+document.querySelectorAll(".season-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    setSeason(btn.dataset.season);
+  });
+});
+
+function updateParticles(t) {
+  const cfg = seasonConfigs[currentSeason];
+  const r = globeRadius - 0.28;
+  const floorY = -3.45;
+
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    const v = velocities[i];
+
+    p.position.x += v.x + cfg.windX * 0.25;
+    p.position.y -= cfg.fallSpeed + Math.abs(v.y) * 0.35;
+    p.position.z += v.z + cfg.windZ * 0.25;
+
+    if (currentSeason === "spring") {
+      p.position.x += Math.sin(t * 2.0 + i) * 0.008;
+      p.material.rotation += 0.01;
+    } else if (currentSeason === "summer") {
+      p.position.y += Math.sin(t * 2.8 + i) * 0.004;
+      p.position.x += Math.cos(t * 2.1 + i) * 0.003;
+      p.material.rotation += 0.003;
+    } else if (currentSeason === "autumn") {
+      p.position.x += Math.sin(t * 2.2 + i) * 0.010;
+      p.position.z += Math.cos(t * 1.9 + i) * 0.008;
+      p.material.rotation += 0.02;
+    } else if (currentSeason === "winter") {
+      p.position.x += Math.sin(t * 1.3 + i) * 0.003;
+      p.material.rotation += 0.004;
     }
 
-    starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
-    const stars = new THREE.Points(
-      starGeo,
-      new THREE.PointsMaterial({ size: 0.06 })
-    );
-    scene.add(stars);
+    const dx = p.position.x;
+    const dy = p.position.y;
+    const dz = p.position.z;
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-    const loader = new THREE.TextureLoader();
-    const textures = [];
-    let currentAge = 0;
-    let startTime = 0;
-    let finished = false;
-    const clock = new THREE.Clock();
-
-    function setLoading(text) {
-      loading.textContent = text;
+    if (p.position.y < floorY) {
+      resetParticle(p, false);
+      continue;
     }
 
-    function loadOne(index) {
-      return new Promise((resolve, reject) => {
-        const path = imagePaths[index];
-        loader.load(
-          path,
-          (tex) => {
-            textures[index] = tex;
-            setLoading(`読み込み中…✨\n${index + 1} / ${TOTAL_AGES}\n${path}`);
-            resolve();
-          },
-          undefined,
-          () => reject(path)
-        );
-      });
+    if (dist > r * 0.985) {
+      const scale = (r * 0.95) / dist;
+      p.position.x = dx * scale;
+      p.position.y = dy * scale;
+      p.position.z = dz * scale;
+    }
+  }
+}
+
+/* ==========
+   きらめき
+========== */
+const sparkleGroup = new THREE.Group();
+globeGroup.add(sparkleGroup);
+
+for (let i = 0; i < 20; i++) {
+  const s = new THREE.Mesh(
+    new THREE.SphereGeometry(0.022, 8, 8),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.7
+    })
+  );
+
+  const rr = 2.4 * Math.random();
+  const aa = Math.random() * Math.PI * 2;
+  const yy = -2.5 + Math.random() * 4.7;
+
+  s.position.set(
+    Math.cos(aa) * rr * 0.55,
+    yy,
+    Math.sin(aa) * rr * 0.55
+  );
+
+  s.userData = {
+    baseY: s.position.y,
+    phase: Math.random() * Math.PI * 2
+  };
+
+  sparkleGroup.add(s);
+}
+
+/* ==========
+   船
+========== */
+const textureLoader = new THREE.TextureLoader();
+
+const shipTexture = textureLoader.load(
+  "ship.png",
+  () => {
+    debug.textContent = "ship: loaded ✅";
+  },
+  undefined,
+  (err) => {
+    console.error(err);
+    debug.textContent = "ship: load error ❌ 画像名を確認";
+  }
+);
+
+const shipGeometry = new THREE.PlaneGeometry(2.9, 2.1, 32, 16);
+const shipMaterial = new THREE.MeshBasicMaterial({
+  map: shipTexture,
+  transparent: true,
+  side: THREE.DoubleSide,
+  depthWrite: false
+});
+
+const ship = new THREE.Mesh(shipGeometry, shipMaterial);
+ship.position.set(0, -2.55, 2.35);
+ship.scale.set(1.18, 1.18, 1);
+ship.renderOrder = 20;
+globeGroup.add(ship);
+
+/* ==========
+   船の影
+========== */
+const shadowCanvas = document.createElement("canvas");
+shadowCanvas.width = 256;
+shadowCanvas.height = 256;
+const shadowCtx = shadowCanvas.getContext("2d");
+
+const shadowGrad = shadowCtx.createRadialGradient(128, 128, 20, 128, 128, 100);
+shadowGrad.addColorStop(0, "rgba(0,0,0,0.32)");
+shadowGrad.addColorStop(0.45, "rgba(0,0,0,0.18)");
+shadowGrad.addColorStop(1, "rgba(0,0,0,0)");
+
+shadowCtx.fillStyle = shadowGrad;
+shadowCtx.beginPath();
+shadowCtx.ellipse(128, 128, 96, 54, 0, 0, Math.PI * 2);
+shadowCtx.fill();
+
+const shadowTexture = new THREE.CanvasTexture(shadowCanvas);
+
+const shipShadow = new THREE.Mesh(
+  new THREE.PlaneGeometry(3.0, 1.5),
+  new THREE.MeshBasicMaterial({
+    map: shadowTexture,
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  })
+);
+shipShadow.rotation.x = -Math.PI / 2;
+shipShadow.position.set(0, -3.24, 2.26);
+shipShadow.renderOrder = 10;
+globeGroup.add(shipShadow);
+
+/* ==========
+   船の反射
+========== */
+const shipReflection = new THREE.Mesh(
+  shipGeometry.clone(),
+  new THREE.MeshBasicMaterial({
+    map: shipTexture,
+    transparent: true,
+    opacity: 0.10,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  })
+);
+shipReflection.scale.y = -1;
+shipReflection.position.set(0, -3.36, 2.35);
+shipReflection.renderOrder = 8;
+globeGroup.add(shipReflection);
+
+const reflectionVeil = new THREE.Mesh(
+  new THREE.PlaneGeometry(3.4, 1.8),
+  new THREE.MeshBasicMaterial({
+    color: 0x9fdcff,
+    transparent: true,
+    opacity: 0.06,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  })
+);
+reflectionVeil.rotation.x = -Math.PI / 2;
+reflectionVeil.position.set(0, -3.18, 2.35);
+reflectionVeil.renderOrder = 9;
+globeGroup.add(reflectionVeil);
+
+/* ==========
+   船まわりの海面キラキラ
+========== */
+const shipGlowGroup = new THREE.Group();
+globeGroup.add(shipGlowGroup);
+
+const shimmerTexture = makeShimmerTexture();
+
+const shipShimmer = new THREE.Mesh(
+  new THREE.PlaneGeometry(4.4, 2.2, 1, 1),
+  new THREE.MeshBasicMaterial({
+    map: shimmerTexture,
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending
+  })
+);
+shipShimmer.rotation.x = -Math.PI / 2;
+shipShimmer.position.set(0, -3.28, 2.35);
+shipGlowGroup.add(shipShimmer);
+
+const shipSparkles = [];
+for (let i = 0; i < 18; i++) {
+  const sp = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.10, 0.10),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.0,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  sp.rotation.x = -Math.PI / 2;
+  shipGlowGroup.add(sp);
+
+  sp.userData = {
+    ox: (Math.random() - 0.5) * 2.8,
+    oz: (Math.random() - 0.5) * 0.9,
+    phase: Math.random() * Math.PI * 2,
+    speed: 1.0 + Math.random() * 1.8,
+    size: 0.05 + Math.random() * 0.12
+  };
+
+  shipSparkles.push(sp);
+}
+
+/* ==========
+   航跡・水しぶき
+========== */
+const wakeGroup = new THREE.Group();
+globeGroup.add(wakeGroup);
+
+const wakeParticles = [];
+const splashParticles = [];
+
+function createWakeParticle() {
+  const p = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.18, 0.18),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.32,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    })
+  );
+  p.rotation.x = -Math.PI / 2;
+  p.visible = false;
+  wakeGroup.add(p);
+  wakeParticles.push({
+    mesh: p,
+    life: 0,
+    maxLife: 1,
+    vx: 0,
+    vz: 0
+  });
+}
+
+function createSplashParticle() {
+  const p = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.10, 0.10),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    })
+  );
+  p.rotation.x = -Math.PI / 2;
+  p.visible = false;
+  wakeGroup.add(p);
+  splashParticles.push({
+    mesh: p,
+    life: 0,
+    maxLife: 1,
+    vx: 0,
+    vy: 0,
+    vz: 0
+  });
+}
+
+for (let i = 0; i < 40; i++) createWakeParticle();
+for (let i = 0; i < 20; i++) createSplashParticle();
+
+let wakeSpawnTimer = 0;
+let splashSpawnTimer = 0;
+
+/* ==========
+   波紋
+========== */
+const rippleGroup = new THREE.Group();
+globeGroup.add(rippleGroup);
+
+const ripples = [];
+const rippleTexture = makeRippleTexture();
+
+function createRipple() {
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.65, 0.65),
+    new THREE.MeshBasicMaterial({
+      map: rippleTexture,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending
+    })
+  );
+
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.visible = false;
+  rippleGroup.add(mesh);
+
+  ripples.push({
+    mesh,
+    life: 0,
+    maxLife: 1,
+    vx: 0,
+    vz: 0
+  });
+}
+
+for (let i = 0; i < 16; i++) createRipple();
+
+let rippleSpawnTimer = 0;
+let prevShipX = 0;
+
+/* ==========
+   帆の変形
+========== */
+function deformSail(mesh, t, isReflection = false) {
+  const pos = mesh.geometry.attributes.position;
+
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+
+    let wave =
+      Math.sin(t * 2.0 + x * 2.5) * 0.08 +
+      Math.sin(t * 1.5 + y * 3.0) * 0.05;
+
+    if (isReflection) wave *= 0.7;
+    pos.setZ(i, wave);
+  }
+
+  pos.needsUpdate = true;
+}
+
+function updateSail(t) {
+  deformSail(ship, t, false);
+  deformSail(shipReflection, t, true);
+}
+
+/* ==========
+   船の動き
+========== */
+function updateShip(t) {
+  const oldX = ship.position.x;
+
+  ship.position.x = Math.sin(t * 0.6) * 3.8;
+  ship.position.y = -2.55 + Math.sin(t * 2.2) * 0.08;
+  ship.position.z = 2.35 + Math.sin(t * 1.1) * 0.04;
+  ship.rotation.z = Math.sin(t * 1.5) * 0.06;
+  ship.rotation.y = Math.sin(t * 0.6) * 0.22;
+
+  const dx = ship.position.x - oldX;
+  prevShipX = dx;
+  const dir = prevShipX >= 0 ? 1 : -1;
+
+  shipShadow.position.x = ship.position.x - dir * 0.10;
+  shipShadow.position.z = ship.position.z - 0.06;
+  shipShadow.position.y = -3.24 + Math.sin(t * 2.0) * 0.01;
+  shipShadow.scale.set(
+    1.0 + Math.abs(prevShipX) * 1.8,
+    1.0 + Math.sin(t * 1.7) * 0.04,
+    1
+  );
+  shipShadow.rotation.z = ship.rotation.z * 0.35;
+
+  shipReflection.position.x = ship.position.x * 0.99 + Math.sin(t * 2.4) * 0.02;
+  shipReflection.position.z = ship.position.z - 0.03 + Math.cos(t * 2.0) * 0.015;
+  shipReflection.position.y = -3.36 - (ship.position.y + 2.55) * 0.35;
+  shipReflection.scale.x = 0.96 + Math.abs(Math.sin(t * 0.6)) * 0.04;
+  shipReflection.scale.y = -(0.84 + Math.sin(t * 1.8) * 0.03);
+  shipReflection.rotation.z = -ship.rotation.z * 0.4;
+  shipReflection.rotation.y = ship.rotation.y * 0.3;
+  shipReflection.material.opacity = 0.09 + Math.sin(t * 2.1) * 0.015;
+
+  reflectionVeil.position.x = ship.position.x;
+  reflectionVeil.position.z = ship.position.z - 0.03;
+  reflectionVeil.position.y = -3.18 + Math.sin(t * 2.0) * 0.006;
+  reflectionVeil.scale.x = 1.0 + Math.abs(prevShipX) * 1.0;
+  reflectionVeil.scale.y = 1.0 + Math.sin(t * 1.6) * 0.03;
+  reflectionVeil.material.opacity = 0.05 + Math.sin(t * 2.3) * 0.01;
+}
+
+/* ==========
+   航跡・水しぶき
+========== */
+function spawnWake(shipDir) {
+  for (const p of wakeParticles) {
+    if (!p.mesh.visible || p.life >= p.maxLife) {
+      p.life = 0;
+      p.maxLife = 1.1 + Math.random() * 0.6;
+      p.mesh.visible = true;
+
+      p.mesh.position.set(
+        ship.position.x - shipDir * 1.15,
+        -3.18,
+        ship.position.z - 0.08 + (Math.random() - 0.5) * 0.18
+      );
+
+      p.mesh.scale.setScalar(0.55 + Math.random() * 0.35);
+      p.vx = -shipDir * (0.018 + Math.random() * 0.010);
+      p.vz = (Math.random() - 0.5) * (0.18 + Math.random() * 0.16);
+      return;
+    }
+  }
+}
+
+function spawnSplash(shipDir) {
+  for (const p of splashParticles) {
+    if (!p.mesh.visible || p.life >= p.maxLife) {
+      p.life = 0;
+      p.maxLife = 0.45 + Math.random() * 0.28;
+      p.mesh.visible = true;
+
+      p.mesh.position.set(
+        ship.position.x + shipDir * 0.95,
+        -3.03,
+        ship.position.z + (Math.random() - 0.5) * 0.12
+      );
+
+      p.mesh.scale.setScalar(0.18 + Math.random() * 0.12);
+      p.vx = shipDir * (0.006 + Math.random() * 0.006);
+      p.vy = 0.010 + Math.random() * 0.012;
+      p.vz = (Math.random() - 0.5) * 0.028;
+      return;
+    }
+  }
+}
+
+function updateWake(delta, shipDir, shipSpeedNow) {
+  wakeSpawnTimer += delta;
+  splashSpawnTimer += delta;
+
+  const wakeInterval = Math.max(0.035, 0.085 - shipSpeedNow * 0.12);
+  const splashInterval = Math.max(0.05, 0.12 - shipSpeedNow * 0.10);
+
+  while (wakeSpawnTimer > wakeInterval) {
+    wakeSpawnTimer -= wakeInterval;
+    spawnWake(shipDir);
+  }
+
+  while (splashSpawnTimer > splashInterval) {
+    splashSpawnTimer -= splashInterval;
+    spawnSplash(shipDir);
+  }
+
+  for (const p of wakeParticles) {
+    if (!p.mesh.visible) continue;
+
+    p.life += delta;
+    const k = p.life / p.maxLife;
+
+    if (k >= 1) {
+      p.mesh.visible = false;
+      continue;
     }
 
-    async function loadAll() {
-      for (let i = 0; i < TOTAL_AGES; i++) {
-        await loadOne(i);
-      }
+    p.mesh.position.x += p.vx;
+    p.mesh.position.z += p.vz;
+    p.mesh.position.y = -3.18 + Math.sin(k * Math.PI) * 0.015;
+
+    const s = 0.5 + k * 1.6;
+    p.mesh.scale.set(s, s * 0.65, 1);
+    p.mesh.material.opacity = (1 - k) * 0.26;
+  }
+
+  for (const p of splashParticles) {
+    if (!p.mesh.visible) continue;
+
+    p.life += delta;
+    const k = p.life / p.maxLife;
+
+    if (k >= 1) {
+      p.mesh.visible = false;
+      continue;
     }
 
-    function applyTexture(index) {
-      sphereMat.map = textures[index];
-      sphereMat.needsUpdate = true;
-      ageLabel.textContent = `${index}歳`;
+    p.mesh.position.x += p.vx;
+    p.mesh.position.y += p.vy;
+    p.mesh.position.z += p.vz;
+    p.vy -= 0.0012;
+
+    const s = 0.18 + k * 0.35;
+    p.mesh.scale.set(s, s, 1);
+    p.mesh.material.opacity = (1 - k) * 0.42;
+  }
+}
+
+/* ==========
+   船まわりキラキラ
+========== */
+function updateShipGlow(t) {
+  shipGlowGroup.position.x = ship.position.x + (prevShipX >= 0 ? 0.16 : -0.16);
+  shipGlowGroup.position.z = ship.position.z - 0.02;
+  shipGlowGroup.position.y = 0;
+
+  shipShimmer.position.x = 0;
+  shipShimmer.position.z = 0;
+  shipShimmer.position.y = -3.20 + Math.sin(t * 2.1) * 0.012;
+  shipShimmer.rotation.z = ship.rotation.z * 0.15;
+
+  const speedGlow = Math.min(1, Math.abs(prevShipX) * 18);
+  shipShimmer.scale.x = 1.0 + speedGlow * 0.65 + Math.abs(Math.sin(t * 0.8)) * 0.08;
+  shipShimmer.scale.y = 1.0 + Math.sin(t * 1.7) * 0.05;
+  shipShimmer.material.opacity = 0.09 + speedGlow * 0.10 + Math.sin(t * 2.4) * 0.02;
+
+  shipSparkles.forEach((sp, i) => {
+    const d = sp.userData;
+    const tw = t * d.speed + d.phase;
+
+    sp.position.x = d.ox + Math.sin(tw * 1.2) * 0.08;
+    sp.position.z = d.oz + Math.cos(tw * 1.1) * 0.05;
+    sp.position.y = -3.16 + Math.sin(tw * 2.0) * 0.01;
+
+    const s = d.size * (0.8 + 0.4 * Math.sin(tw * 1.8 + i));
+    sp.scale.set(s, s, 1);
+
+    sp.material.opacity =
+      0.08 +
+      0.15 * Math.max(0, Math.sin(tw * 2.2)) +
+      speedGlow * 0.06;
+  });
+}
+
+/* ==========
+   波紋
+========== */
+function spawnRipple(shipDir) {
+  for (const r of ripples) {
+    if (!r.mesh.visible || r.life >= r.maxLife) {
+      r.life = 0;
+      r.maxLife = 0.9 + Math.random() * 0.55;
+      r.mesh.visible = true;
+
+      const side = Math.random() > 0.5 ? 1 : -1;
+      const xOffset = side * (0.35 + Math.random() * 0.22);
+      const zOffset = (Math.random() - 0.5) * 0.22;
+
+      r.mesh.position.set(
+        ship.position.x - shipDir * (0.10 + Math.random() * 0.28) + xOffset,
+        -3.20,
+        ship.position.z + zOffset
+      );
+
+      const base = 0.20 + Math.random() * 0.10;
+      r.mesh.scale.set(base, base, 1);
+
+      r.vx = -shipDir * (0.002 + Math.random() * 0.004);
+      r.vz = (Math.random() - 0.5) * 0.01;
+      r.mesh.material.opacity = 0.22 + Math.random() * 0.10;
+      return;
+    }
+  }
+}
+
+function updateRipples(delta, t) {
+  rippleSpawnTimer += delta;
+
+  const speedFactor = Math.min(1, Math.abs(prevShipX) * 18);
+  const rippleInterval = Math.max(0.08, 0.22 - speedFactor * 0.12);
+  const shipDir = prevShipX >= 0 ? 1 : -1;
+
+  while (rippleSpawnTimer > rippleInterval) {
+    rippleSpawnTimer -= rippleInterval;
+    spawnRipple(shipDir);
+  }
+
+  for (const r of ripples) {
+    if (!r.mesh.visible) continue;
+
+    r.life += delta;
+    const k = r.life / r.maxLife;
+
+    if (k >= 1) {
+      r.mesh.visible = false;
+      continue;
     }
 
-    function animate() {
-      requestAnimationFrame(animate);
+    r.mesh.position.x += r.vx;
+    r.mesh.position.z += r.vz;
+    r.mesh.position.y = -3.20 + Math.sin(t * 2.1 + k * 6.0) * 0.006;
 
-      stars.rotation.y += 0.0005;
+    const scale = 0.22 + k * 1.35;
+    r.mesh.scale.set(scale, scale * (0.92 + Math.sin(t * 1.7) * 0.04), 1);
 
-      if (!finished) {
-        const elapsed = clock.getElapsedTime();
-        const t = elapsed - startTime;
-        const progress = Math.min(t / DURATION, 1);
+    r.mesh.material.opacity = (1 - k) * (0.14 + speedFactor * 0.10);
+  }
+}
 
-        sphere.rotation.y = progress * Math.PI * 2;
+/* ==========
+   アニメーション
+========== */
+const clock = new THREE.Clock();
+let elapsed = 0;
 
-        if (progress >= 1) {
-          if (currentAge < TOTAL_AGES - 1) {
-            currentAge++;
-            applyTexture(currentAge);
-            startTime = elapsed;
-            sphere.rotation.y = 0;
-          } else {
-            finished = true;
-          }
-        }
-      }
+function animate() {
+  requestAnimationFrame(animate);
 
-      renderer.render(scene, camera);
-    }
+  const delta = clock.getDelta();
+  elapsed += delta;
+  const t = elapsed;
 
-    window.addEventListener("resize", () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+  globeGroup.rotation.y += 0.0012;
+  globeHighlight.rotation.y -= 0.0009;
+  globeSpec.rotation.y += 0.0007;
 
-    loadAll()
-      .then(() => {
-        applyTexture(0);
-        loading.style.display = "none";
-        animate();
-      })
-      .catch((badFile) => {
-        setLoading(
-          `この画像が読めませんでした😟\n\n${badFile}\n\n` +
-          `確認してください:\n` +
-          `・index.html と同じ場所にあるか\n` +
-          `・ファイル名が完全一致か\n` +
-          `・拡張子が .png か`
-        );
-      });
-  </script>
+  updateParticles(t);
+  updateShip(t);
+  updateSail(t);
+
+  const shipDir = prevShipX >= 0 ? 1 : -1;
+  const shipSpeedNow = Math.min(1, Math.abs(prevShipX) * 18);
+
+  updateWake(delta, shipDir, shipSpeedNow);
+  updateShipGlow(t);
+  updateRipples(delta, t);
+
+  reflectionWrap.rotation.y = Math.sin(t * 0.65) * 0.012;
+  reflectionGroup.position.x = Math.sin(t * 1.2) * 0.03;
+  reflectionGroup.position.z = Math.cos(t * 1.05) * 0.025;
+  reflectionGroup.scale.x = 1 + Math.sin(t * 1.8) * 0.01;
+  reflectionGroup.scale.z = 1 + Math.cos(t * 1.6) * 0.01;
+
+  waterPlane.material.opacity = 0.08 + Math.sin(t * 1.5) * 0.015;
+  waterGlow.material.opacity = 0.04 + Math.sin(t * 2.2) * 0.012;
+
+  sparkleGroup.children.forEach((p, i) => {
+    p.position.y = p.userData.baseY + Math.sin(t * 1.7 + p.userData.phase) * 0.025;
+    p.material.opacity = 0.4 + 0.25 * Math.sin(t * 2.0 + i);
+  });
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+setSeason("spring");
+animate();
+
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+});
+</script>
 </body>
 </html>
